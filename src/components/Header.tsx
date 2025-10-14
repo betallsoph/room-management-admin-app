@@ -34,9 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           </svg>
         </IconButton> */}
         
-        <Text fontSize={{ base: 'lg', md: 'xl' }} fontWeight="bold" color="blue.600">
-          Room Manager
-        </Text>
+        {/* Logo moved to Sidebar */}
       </Flex>
 
       {/* User info */}

@@ -69,7 +69,7 @@ export function BlocksPage() {
         direction={{ base: 'column', sm: 'row' }}
         gap={{ base: 3, sm: 0 }}
       >
-        <Heading fontSize={{ base: '2xl', md: '3xl' }}>Quản lý Block</Heading>
+        <Heading fontSize={{ base: '2xl', md: '3xl' }} color="gray.800">Quản lý Block</Heading>
         <Button 
           colorScheme="blue" 
           onClick={handleAdd}

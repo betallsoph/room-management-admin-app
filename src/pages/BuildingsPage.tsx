@@ -65,7 +65,7 @@ export function BuildingsPage() {
         direction={{ base: 'column', sm: 'row' }}
         gap={{ base: 3, sm: 0 }}
       >
-        <Heading fontSize={{ base: '2xl', md: '3xl' }}>Quản lý căn hộ</Heading>
+        <Heading fontSize={{ base: '2xl', md: '3xl' }} color="gray.800">Quản lý căn hộ</Heading>
         <Button 
           colorScheme="blue" 
           onClick={handleAdd}

@@ -91,7 +91,7 @@ export function TenantsPage() {
         direction={{ base: 'column', sm: 'row' }}
         gap={{ base: 3, sm: 0 }}
       >
-        <Heading fontSize={{ base: '2xl', md: '3xl' }}>Quản lý Khách thuê</Heading>
+        <Heading fontSize={{ base: '2xl', md: '3xl' }} color="gray.800">Quản lý Khách thuê</Heading>
         <Button 
           colorScheme="blue" 
           onClick={handleAdd}

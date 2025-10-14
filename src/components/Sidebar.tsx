@@ -47,7 +47,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: 'Dashboard', path: '/', icon: HomeIcon },
+  { name: 'Tổng quan', path: '/', icon: HomeIcon },
   { name: 'Thông báo', path: '/notifications', icon: SendIcon },
   { name: 'Hóa đơn', path: '/invoices', icon: InvoiceIcon },
   { name: 'Chat', path: '/chat', icon: ChatIcon },
@@ -71,6 +71,13 @@ export function Sidebar() {
       display={{ base: 'none', lg: 'block' }}
       zIndex="20"
     >
+      {/* Logo */}
+      <Box px={4} py={6} borderBottom="1px" borderColor="gray.200">
+        <Text fontSize="xl" fontWeight="bold" color="blue.600">
+          Room Manager
+        </Text>
+      </Box>
+      
       {/* Navigation Links */}
       <VStack align="stretch" gap={1} p={4} pt={6}>
         {navItems.map((item) => {
