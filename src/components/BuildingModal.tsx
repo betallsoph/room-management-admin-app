@@ -75,6 +75,9 @@ export function BuildingModal({ isOpen, onClose, building }: BuildingModalProps)
         w="full"
         zIndex="1001"
         color="gray.800"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <Box

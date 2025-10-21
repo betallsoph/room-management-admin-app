@@ -1,7 +1,7 @@
 // Room Management Context - Quản lý state toàn app
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { Building, Block, Room, Tenant } from '../types';
+import type { Building, Block, Room, Tenant, Notification } from '../types';
 import { mockBuildings, mockBlocks, mockRooms, mockTenants } from '../services/mockData';
 
 interface RoomManagementContextType {
@@ -10,6 +10,7 @@ interface RoomManagementContextType {
   blocks: Block[];
   rooms: Room[];
   tenants: Tenant[];
+  notifications: Notification[];
   
   // Buildings
   addBuilding: (building: Omit<Building, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -34,6 +35,9 @@ interface RoomManagementContextType {
   updateTenant: (id: string, data: Partial<Tenant>) => void;
   deleteTenant: (id: string) => void;
   getTenantsByRoomId: (roomId: string) => Tenant[];
+
+  // Notifications
+  addNotification: (data: Omit<Notification, 'id' | 'createdAt'>) => void;
 }
 
 const RoomManagementContext = createContext<RoomManagementContextType | undefined>(undefined);
@@ -45,6 +49,7 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
   const [blocks, setBlocks] = useState<Block[]>(mockBlocks);
   const [rooms, setRooms] = useState<Room[]>(mockRooms);
   const [tenants, setTenants] = useState<Tenant[]>(mockTenants);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // ============ BUILDING OPERATIONS ============
   const addBuilding = useCallback((buildingData: Omit<Building, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -160,11 +165,22 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     return tenants.filter(tenant => tenant.roomId === roomId);
   }, [tenants]);
 
+  // ============ NOTIFICATION OPERATIONS ============
+  const addNotification = useCallback((data: Omit<Notification, 'id' | 'createdAt'>) => {
+    const newNotification: Notification = {
+      ...data,
+      id: Date.now().toString(),
+      createdAt: new Date(),
+    };
+    setNotifications(prev => [newNotification, ...prev]);
+  }, []);
+
   const value: RoomManagementContextType = {
     buildings,
     blocks,
     rooms,
     tenants,
+    notifications,
     addBuilding,
     updateBuilding,
     deleteBuilding,
@@ -181,6 +197,7 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     updateTenant,
     deleteTenant,
     getTenantsByRoomId,
+    addNotification,
   };
 
   return (

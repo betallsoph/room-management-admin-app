@@ -94,3 +94,15 @@ export interface PaginatedResponse<T> {
   limit: number;
   totalPages: number;
 }
+
+// Notifications
+export type NotificationTargetType = 'all' | 'building' | 'block' | 'room' | 'tenant';
+
+export interface Notification {
+  id: string;
+  title: string;
+  content: string;
+  targetType: NotificationTargetType; // chọn gửi theo all/building/block/room/tenant
+  targetIds?: string[]; // id của building/block/room/tenant tùy theo targetType
+  createdAt: Date;
+}

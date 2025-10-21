@@ -15,21 +15,23 @@ export function RoomModal({ isOpen, onClose, room }: RoomModalProps) {
   const { addRoom, updateRoom, blocks } = useRoomManagement();
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
   
-  // Helper to extract blockId and roomNumber from name (e.g., "A1-01" -> blockId for "Block A1", roomNumber "a1-01")
+  // Helper: parse "a1-16-06" -> blockId and normalized roomNumber
   const parseRoomName = (name: string) => {
-    const match = name.match(/^([A-Za-z]+\d+)-(.+)$/);
+    const match = name.trim().toLowerCase().match(/^([a-z]+\d+)-(\d{1,2})-(\d{1,2})$/);
     if (match) {
-      const blockName = match[1]; // e.g., "A1"
-      const roomNum = match[2]; // e.g., "01"
-      const block = blocks.find(b => 
-        b.name.toLowerCase().replace(/\s+/g, '') === `block${blockName.toLowerCase()}`
-      );
+      const blockCode = match[1]; // a1 / a2
+      const floor = match[2].padStart(2, '0');
+      const num = match[3].padStart(2, '0');
+      const block = blocks.find(b => b.name.toLowerCase().replace(/\s+/g, '') === `block${blockCode}`);
       return {
         blockId: block?.id || '',
-        roomNumber: `${blockName.toLowerCase()}-${roomNum}` // e.g., "a1-01"
+        roomNumber: `${blockCode}-${floor}-${num}`,
       };
     }
-    return { blockId: '', roomNumber: name.toLowerCase() };
+    // fallback: try old format a1-01
+    const legacy = name.trim().toLowerCase();
+    const block = blocks.find(b => legacy.startsWith(b.name.toLowerCase().replace(/\s+/g, '').replace('block', '')));
+    return { blockId: block?.id || '', roomNumber: legacy };
   };
   
   const { values, handleChange, reset, setValues } = useForm({
@@ -127,6 +129,9 @@ export function RoomModal({ isOpen, onClose, room }: RoomModalProps) {
         overflowY="auto"
         zIndex="1001"
         color="gray.800"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
       >
         <Box
           px={6}
@@ -163,7 +168,7 @@ export function RoomModal({ isOpen, onClose, room }: RoomModalProps) {
             <Input
               value={values.name}
               onChange={(e) => handleChange('name', e.target.value)}
-              placeholder="VD: A1-01 (Block A1, Phòng 01)"
+              placeholder="VD: A1-16-06 (Block A1, Tầng 16, Phòng 06)"
               bg="white"
               borderColor="gray.300"
               color="gray.800"
@@ -240,8 +245,7 @@ export function RoomModal({ isOpen, onClose, room }: RoomModalProps) {
             <Box as="label" display="block" mb={2} fontWeight="medium" fontSize="sm" color="gray.700">
               Trạng thái
             </Box>
-            <Box
-              as="select"
+            <select
               value={values.status}
               onChange={(e) => handleChange('status', e.target.value)}
               style={{
@@ -257,7 +261,7 @@ export function RoomModal({ isOpen, onClose, room }: RoomModalProps) {
               <option value="occupied">Đã cho thuê</option>
               <option value="maintenance">Bảo trì</option>
               <option value="reserved">Đã đặt</option>
-            </Box>
+            </select>
           </Box>
 
           <Box mb={4}>

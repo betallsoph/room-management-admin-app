@@ -7,6 +7,7 @@ import { BuildingsPage } from './pages/BuildingsPage';
 import { BlocksPage } from './pages/BlocksPage';
 import { RoomsPage } from './pages/RoomsPage';
 import { TenantsPage } from './pages/TenantsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/manage" element={<ManagePage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/buildings" element={<BuildingsPage />} />
             <Route path="/blocks" element={<BlocksPage />} />
             <Route path="/rooms" element={<RoomsPage />} />
