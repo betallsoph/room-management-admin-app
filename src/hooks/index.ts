@@ -1,5 +1,5 @@
 // Custom Hooks
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ============ useLocalStorage Hook ============
 // Lưu trữ state vào localStorage, tự động sync
@@ -105,9 +105,15 @@ export function useToggle(initialValue: boolean = false) {
 // ============ useForm Hook ============
 // Quản lý form state và validation
 export function useForm<T extends Record<string, any>>(initialValues: T) {
+  const initialValuesRef = useRef(initialValues);
+
   const [values, setValues] = useState<T>(initialValues);
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
   const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
+
+  useEffect(() => {
+    initialValuesRef.current = initialValues;
+  }, [initialValues]);
 
   const handleChange = useCallback((name: keyof T, value: any) => {
     setValues(prev => ({ ...prev, [name]: value }));
@@ -126,10 +132,10 @@ export function useForm<T extends Record<string, any>>(initialValues: T) {
   }, []);
 
   const reset = useCallback(() => {
-    setValues(initialValues);
+    setValues(initialValuesRef.current);
     setErrors({});
     setTouched({});
-  }, [initialValues]);
+  }, [setValues, setErrors, setTouched]);
 
   const setFieldValue = useCallback((name: keyof T, value: any) => {
     setValues(prev => ({ ...prev, [name]: value }));

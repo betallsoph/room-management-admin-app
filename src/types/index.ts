@@ -71,6 +71,51 @@ export const TenantStatus = {
 
 export type TenantStatus = typeof TenantStatus[keyof typeof TenantStatus];
 
+export const InvoiceStatus = {
+  DRAFT: 'draft',
+  SENT: 'sent',
+  PAID: 'paid',
+  OVERDUE: 'overdue',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type InvoiceStatus = typeof InvoiceStatus[keyof typeof InvoiceStatus];
+
+export interface InvoiceLineItem {
+  id: string;
+  label: string;
+  amount: number;
+  quantity?: number;
+  unit?: string;
+  description?: string;
+}
+
+export interface InvoiceAttachment {
+  id: string;
+  name: string;
+  url?: string;
+  uploadedAt?: Date;
+}
+
+export interface Invoice {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  issueDate: Date;
+  dueDate: Date;
+  period: string; // YYYY-MM
+  status: InvoiceStatus;
+  totalAmount: number;
+  balanceDue: number;
+  notes?: string;
+  sentAt?: Date;
+  paidAt?: Date;
+  lineItems: InvoiceLineItem[];
+  attachments?: InvoiceAttachment[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   success: boolean;

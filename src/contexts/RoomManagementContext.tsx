@@ -1,8 +1,8 @@
 // Room Management Context - Quản lý state toàn app
 import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import type { Building, Block, Room, Tenant, Notification } from '../types';
-import { mockBuildings, mockBlocks, mockRooms, mockTenants } from '../services/mockData';
+import type { Building, Block, Room, Tenant, Notification, Invoice, InvoiceStatus, InvoiceAttachment } from '../types';
+import { mockBuildings, mockBlocks, mockRooms, mockTenants, mockInvoices } from '../services/mockData';
 
 interface RoomManagementContextType {
   // State
@@ -11,6 +11,7 @@ interface RoomManagementContextType {
   rooms: Room[];
   tenants: Tenant[];
   notifications: Notification[];
+  invoices: Invoice[];
   
   // Buildings
   addBuilding: (building: Omit<Building, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -38,6 +39,15 @@ interface RoomManagementContextType {
 
   // Notifications
   addNotification: (data: Omit<Notification, 'id' | 'createdAt'>) => void;
+
+  // Invoices
+  addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateInvoice: (id: string, data: Partial<Invoice>) => void;
+  updateInvoiceStatus: (id: string, status: InvoiceStatus) => void;
+  toggleInvoiceSent: (id: string) => void;
+  markInvoicePaid: (id: string) => void;
+  addInvoiceAttachment: (invoiceId: string, attachment: Omit<InvoiceAttachment, 'id' | 'uploadedAt'>) => void;
+  removeInvoiceAttachment: (invoiceId: string, attachmentId: string) => void;
 }
 
 const RoomManagementContext = createContext<RoomManagementContextType | undefined>(undefined);
@@ -50,6 +60,7 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
   const [rooms, setRooms] = useState<Room[]>(mockRooms);
   const [tenants, setTenants] = useState<Tenant[]>(mockTenants);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
 
   // ============ BUILDING OPERATIONS ============
   const addBuilding = useCallback((buildingData: Omit<Building, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -175,12 +186,113 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     setNotifications(prev => [newNotification, ...prev]);
   }, []);
 
+  // ============ INVOICE OPERATIONS ============
+  const addInvoice = useCallback((invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newInvoice: Invoice = {
+      ...invoiceData,
+      id: `inv-${Date.now()}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setInvoices(prev => [newInvoice, ...prev]);
+  }, []);
+
+  const updateInvoice = useCallback((id: string, data: Partial<Invoice>) => {
+    setInvoices(prev => prev.map(invoice =>
+      invoice.id === id
+        ? { ...invoice, ...data, updatedAt: new Date() }
+        : invoice
+    ));
+  }, []);
+
+  const updateInvoiceStatus = useCallback((id: string, status: InvoiceStatus) => {
+    setInvoices(prev => prev.map(invoice =>
+      invoice.id === id
+        ? {
+            ...invoice,
+            status,
+            sentAt: status === 'sent' && !invoice.sentAt ? new Date() : invoice.sentAt,
+            paidAt: status === 'paid' ? new Date() : (status === 'draft' || status === 'sent' ? undefined : invoice.paidAt),
+            balanceDue: status === 'paid' ? 0 : invoice.balanceDue,
+            updatedAt: new Date(),
+          }
+        : invoice
+    ));
+  }, []);
+
+  const toggleInvoiceSent = useCallback((id: string) => {
+    setInvoices(prev => prev.map(invoice => {
+      if (invoice.id !== id) return invoice;
+      const isAlreadySent = invoice.status === 'sent';
+      if (isAlreadySent) {
+        return {
+          ...invoice,
+          status: 'draft',
+          sentAt: undefined,
+          updatedAt: new Date(),
+        };
+      }
+      return {
+        ...invoice,
+        status: 'sent',
+        sentAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }));
+  }, []);
+
+  const markInvoicePaid = useCallback((id: string) => {
+    setInvoices(prev => prev.map(invoice =>
+      invoice.id === id
+        ? {
+            ...invoice,
+            status: 'paid',
+            balanceDue: 0,
+            paidAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : invoice
+    ));
+  }, []);
+
+  const addInvoiceAttachment = useCallback((invoiceId: string, attachment: Omit<InvoiceAttachment, 'id' | 'uploadedAt'>) => {
+    setInvoices(prev => prev.map(invoice =>
+      invoice.id === invoiceId
+        ? {
+            ...invoice,
+            attachments: [
+              ...(invoice.attachments || []),
+              {
+                ...attachment,
+                id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                uploadedAt: new Date(),
+              },
+            ],
+            updatedAt: new Date(),
+          }
+        : invoice
+    ));
+  }, []);
+
+  const removeInvoiceAttachment = useCallback((invoiceId: string, attachmentId: string) => {
+    setInvoices(prev => prev.map(invoice =>
+      invoice.id === invoiceId
+        ? {
+            ...invoice,
+            attachments: (invoice.attachments || []).filter(att => att.id !== attachmentId),
+            updatedAt: new Date(),
+          }
+        : invoice
+    ));
+  }, []);
+
   const value: RoomManagementContextType = {
     buildings,
     blocks,
     rooms,
     tenants,
     notifications,
+    invoices,
     addBuilding,
     updateBuilding,
     deleteBuilding,
@@ -198,6 +310,13 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     deleteTenant,
     getTenantsByRoomId,
     addNotification,
+    addInvoice,
+    updateInvoice,
+    updateInvoiceStatus,
+    toggleInvoiceSent,
+    markInvoicePaid,
+    addInvoiceAttachment,
+    removeInvoiceAttachment,
   };
 
   return (

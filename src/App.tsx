@@ -8,6 +8,7 @@ import { BlocksPage } from './pages/BlocksPage';
 import { RoomsPage } from './pages/RoomsPage';
 import { TenantsPage } from './pages/TenantsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { InvoicesPage } from './pages/InvoicesPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/manage" element={<ManagePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/invoices" element={<InvoicesPage />} />
             <Route path="/buildings" element={<BuildingsPage />} />
             <Route path="/blocks" element={<BlocksPage />} />
             <Route path="/rooms" element={<RoomsPage />} />

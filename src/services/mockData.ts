@@ -3,3 +3,4 @@ export { mockBuildings } from './mock';
 export { mockBlocks } from './mock';
 export { mockRooms } from './mock';
 export { mockTenants } from './mock';
+export { mockInvoices } from './mock';

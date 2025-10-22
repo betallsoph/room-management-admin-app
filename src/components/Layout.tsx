@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { MobileSidebar } from './MobileSidebar';
 import { BottomNavbar } from './BottomNavbar';
+import { AppToaster } from './AppToaster';
 
 interface LayoutProps {
   children: ReactNode;
@@ -34,6 +35,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Bottom Navbar for Mobile */}
       <BottomNavbar />
+      <AppToaster />
     </Flex>
   );
 }
