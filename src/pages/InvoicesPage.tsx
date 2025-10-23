@@ -16,6 +16,7 @@ import type { Invoice, InvoiceStatus } from '../types';
 import { InvoiceDetailModal } from '../components/InvoiceDetailModal';
 import { InvoiceStatusBadge, invoiceStatusLabels } from '../components/InvoiceStatusBadge';
 import { appToaster } from '../lib/toaster';
+import InvoiceFormModal from '../components/InvoiceCreateModal';
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
 
@@ -44,16 +45,16 @@ export function InvoicesPage() {
     rooms,
     blocks,
     buildings,
-    toggleInvoiceSent,
-    markInvoicePaid,
-    addInvoiceAttachment,
+    deleteInvoice,
   } = useRoomManagement();
   const [statusFilter, setStatusFilter] = useState<'all' | InvoiceStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [isFormOpen, setFormOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
   const selectedInvoice = useMemo<Invoice | null>(
-    () => (selectedInvoiceId ? invoices.find(inv => inv.id === selectedInvoiceId) || null : null),
+    () => (selectedInvoiceId ? invoices.find((inv) => inv.id === selectedInvoiceId) || null : null),
     [invoices, selectedInvoiceId],
   );
 
@@ -112,36 +113,23 @@ export function InvoicesPage() {
     return totals;
   }, [invoices]);
 
-  const handleToggleSent = (invoiceId: string) => {
-    const target = invoices.find(inv => inv.id === invoiceId);
-    if (!target) return;
-    const wasSent = target.status === 'sent';
-    toggleInvoiceSent(invoiceId);
-    appToaster.info({
-      title: wasSent ? 'Đã bỏ đánh dấu gửi' : 'Đã đánh dấu đã gửi',
-      description: target.period ? `Kỳ ${getPeriodLabel(target.period)}` : undefined,
-    });
+  const handleOpenCreate = () => {
+    setEditingInvoice(null);
+    setFormOpen(true);
   };
 
-  const handleMarkPaid = (invoiceId: string) => {
-    markInvoicePaid(invoiceId);
-    appToaster.success({
-      title: 'Đã đánh dấu thanh toán',
-      description: 'Trạng thái cập nhật sang Đã thanh toán',
-    });
+  const handleOpenEdit = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setFormOpen(true);
   };
 
-  const handleUploadProof = (invoiceId: string) => {
-    const invoice = invoices.find(inv => inv.id === invoiceId);
-    if (!invoice) return;
-    addInvoiceAttachment(invoiceId, {
-      name: `hoa-don-${invoice.period}.png`,
-      url: '',
-    });
-    appToaster.info({
-      title: 'Đã thêm chứng từ',
-      description: 'Ảnh minh chứng tạm, chờ kết nối S3 sau',
-    });
+  const handleDeleteInvoice = (invoice: Invoice) => {
+    const tenant = tenantMap.get(invoice.tenantId);
+    const label = tenant ? `${tenant.fullName} - ${getPeriodLabel(invoice.period)}` : invoice.period;
+    const confirmed = window.confirm(`Xoá hoá đơn nháp ${label}?`);
+    if (!confirmed) return;
+    deleteInvoice(invoice.id);
+    appToaster.success({ title: 'Đã xoá hoá đơn nháp' });
   };
 
   const renderDesktopTable = () => (
@@ -239,33 +227,26 @@ export function InvoicesPage() {
                       >
                         Xem
                       </Button>
-                      {(invoice.status === 'draft' || invoice.status === 'sent') && (
-                        <Button
-                          size="sm"
-                          variant={invoice.status === 'sent' ? 'solid' : 'outline'}
-                          colorScheme="blue"
-                          onClick={() => handleToggleSent(invoice.id)}
-                        >
-                          {invoice.status === 'sent' ? 'Đã gửi' : 'Đánh dấu đã gửi'}
-                        </Button>
+                      {invoice.status === 'draft' && (
+                        <>
+                          <Button
+                            size="sm"
+                            colorScheme="blue"
+                            variant="outline"
+                            onClick={() => handleOpenEdit(invoice)}
+                          >
+                            Sửa
+                          </Button>
+                          <Button
+                            size="sm"
+                            colorScheme="red"
+                            variant="outline"
+                            onClick={() => handleDeleteInvoice(invoice)}
+                          >
+                            Xoá
+                          </Button>
+                        </>
                       )}
-                      {invoice.status !== 'paid' && (
-                        <Button
-                          size="sm"
-                          colorScheme="green"
-                          variant="outline"
-                          onClick={() => handleMarkPaid(invoice.id)}
-                        >
-                          Đánh dấu thanh toán
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleUploadProof(invoice.id)}
-                      >
-                        Upload ảnh
-                      </Button>
                     </Flex>
                   </Table.Cell>
                 </Table.Row>
@@ -320,24 +301,16 @@ export function InvoicesPage() {
                     <Button size="sm" variant="ghost" onClick={() => setSelectedInvoiceId(invoice.id)}>
                       Xem chi tiết
                     </Button>
-                    {(invoice.status === 'draft' || invoice.status === 'sent') && (
-                      <Button
-                        size="sm"
-                        variant={invoice.status === 'sent' ? 'solid' : 'outline'}
-                        colorScheme="blue"
-                        onClick={() => handleToggleSent(invoice.id)}
-                      >
-                        {invoice.status === 'sent' ? 'Đã gửi' : 'Đánh dấu đã gửi'}
-                      </Button>
+                    {invoice.status === 'draft' && (
+                      <>
+                        <Button size="sm" colorScheme="blue" variant="outline" onClick={() => handleOpenEdit(invoice)}>
+                          Sửa
+                        </Button>
+                        <Button size="sm" colorScheme="red" variant="outline" onClick={() => handleDeleteInvoice(invoice)}>
+                          Xoá
+                        </Button>
+                      </>
                     )}
-                    {invoice.status !== 'paid' && (
-                      <Button size="sm" colorScheme="green" variant="outline" onClick={() => handleMarkPaid(invoice.id)}>
-                        Đánh dấu thanh toán
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => handleUploadProof(invoice.id)}>
-                      Upload ảnh
-                    </Button>
                   </Flex>
                 </Card.Body>
               </Card.Root>
@@ -361,8 +334,8 @@ export function InvoicesPage() {
           Hóa đơn
         </Heading>
         <Flex gap={2} w={{ base: 'full', sm: 'auto' }}>
-          <Button variant="outline" colorScheme="blue" w={{ base: 'full', sm: 'auto' }}>
-            Tạo hóa đơn (coming soon)
+          <Button colorScheme="blue" w={{ base: 'full', sm: 'auto' }} onClick={handleOpenCreate}>
+            + Tạo hóa đơn
           </Button>
         </Flex>
       </Flex>
@@ -426,9 +399,14 @@ export function InvoicesPage() {
         invoice={selectedInvoice}
         isOpen={Boolean(selectedInvoice)}
         onClose={() => setSelectedInvoiceId(null)}
-        onUploadProof={() => selectedInvoice && handleUploadProof(selectedInvoice.id)}
-        onToggleSent={() => selectedInvoice && handleToggleSent(selectedInvoice.id)}
-        onMarkPaid={() => selectedInvoice && handleMarkPaid(selectedInvoice.id)}
+      />
+      <InvoiceFormModal
+        isOpen={isFormOpen}
+        invoice={editingInvoice}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingInvoice(null);
+        }}
       />
     </Box>
   );

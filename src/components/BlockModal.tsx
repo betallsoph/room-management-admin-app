@@ -1,5 +1,5 @@
 // Block Modal - Form thêm/sửa block
-import { Box, Button, Input, Textarea, Select } from '@chakra-ui/react';
+import { Box, Button, Input, Textarea } from '@chakra-ui/react';
 import { useEffect } from 'react';
 import { useRoomManagement } from '../contexts/RoomManagementContext';
 import { useForm } from '../hooks';
@@ -99,20 +99,24 @@ export function BlockModal({ isOpen, onClose, block }: BlockModalProps) {
             <Box as="label" display="block" mb={2} fontWeight="medium" fontSize="sm" color="gray.700">
               Căn hộ
             </Box>
-            <Select
+            <Box
+              as="select"
               value={values.buildingId}
               onChange={(e) => handleChange('buildingId', e.target.value)}
               placeholder="Chọn căn hộ"
               bg="white"
               borderColor="gray.300"
               color="gray.800"
+              borderRadius="md"
+              py={2}
+              px={3}
             >
               {buildings.map(building => (
                 <option key={building.id} value={building.id}>
                   {building.name}
                 </option>
               ))}
-            </Select>
+            </Box>
           </Box>
 
           <Box mb={4}>

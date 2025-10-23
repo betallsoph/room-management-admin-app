@@ -48,6 +48,7 @@ interface RoomManagementContextType {
   markInvoicePaid: (id: string) => void;
   addInvoiceAttachment: (invoiceId: string, attachment: Omit<InvoiceAttachment, 'id' | 'uploadedAt'>) => void;
   removeInvoiceAttachment: (invoiceId: string, attachmentId: string) => void;
+  deleteInvoice: (id: string) => void;
 }
 
 const RoomManagementContext = createContext<RoomManagementContextType | undefined>(undefined);
@@ -190,6 +191,7 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
   const addInvoice = useCallback((invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newInvoice: Invoice = {
       ...invoiceData,
+      issueDate: invoiceData.issueDate ?? new Date(),
       id: `inv-${Date.now()}`,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -286,6 +288,10 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     ));
   }, []);
 
+  const deleteInvoice = useCallback((id: string) => {
+    setInvoices(prev => prev.filter(invoice => invoice.id !== id));
+  }, []);
+
   const value: RoomManagementContextType = {
     buildings,
     blocks,
@@ -317,6 +323,7 @@ export function RoomManagementProvider({ children }: { children: ReactNode }) {
     markInvoicePaid,
     addInvoiceAttachment,
     removeInvoiceAttachment,
+    deleteInvoice,
   };
 
   return (

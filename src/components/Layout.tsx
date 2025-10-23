@@ -1,16 +1,21 @@
 // Layout Component - Bố cục chính của app
 import { Box, Flex } from '@chakra-ui/react';
-import type { ReactNode } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { MobileSidebar } from './MobileSidebar';
 import { BottomNavbar } from './BottomNavbar';
-import { AppToaster } from './AppToaster';
 
-interface LayoutProps {
-  children: ReactNode;
-}
+export function Layout() {
+  const navigate = useNavigate();
 
-export function Layout({ children }: LayoutProps) {
+  useEffect(() => {
+    const token = window.localStorage.getItem('room-admin-auth');
+    if (!token) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
+
   return (
     <Flex minH="100vh" bg="gray.50">
       {/* Desktop Sidebar */}
@@ -29,13 +34,12 @@ export function Layout({ children }: LayoutProps) {
           p={{ base: 4, md: 6 }}
           pb={{ base: 20, lg: 6 }} // Extra padding bottom on mobile for bottom navbar
         >
-          {children}
+          <Outlet />
         </Box>
       </Box>
 
       {/* Bottom Navbar for Mobile */}
       <BottomNavbar />
-      <AppToaster />
     </Flex>
   );
 }

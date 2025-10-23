@@ -8,21 +8,11 @@ interface InvoiceDetailModalProps {
   invoice: Invoice | null;
   isOpen: boolean;
   onClose: () => void;
-  onUploadProof: () => void;
-  onToggleSent: () => void;
-  onMarkPaid: () => void;
 }
 
 const currencyFormatter = new Intl.NumberFormat('vi-VN');
 
-export function InvoiceDetailModal({
-  invoice,
-  isOpen,
-  onClose,
-  onUploadProof,
-  onToggleSent,
-  onMarkPaid,
-}: InvoiceDetailModalProps) {
+export function InvoiceDetailModal({ invoice, isOpen, onClose }: InvoiceDetailModalProps) {
   const { tenants, rooms, blocks, buildings } = useRoomManagement();
 
   const contextData = useMemo(() => {
@@ -52,26 +42,7 @@ export function InvoiceDetailModal({
     return null;
   }
 
-  const attachments: Array<{
-    id: string;
-    name?: string;
-    url?: string;
-    uploadedAt?: Date;
-  }> = invoice.attachments && invoice.attachments.length > 0
-    ? invoice.attachments.map(att => ({
-        id: att.id,
-        name: att.name,
-        url: att.url,
-        uploadedAt: att.uploadedAt,
-      }))
-    : [
-        { id: 'placeholder-1', name: 'Chứng từ sẽ hiển thị ở đây' },
-        { id: 'placeholder-2', name: 'Chứng từ sẽ hiển thị ở đây' },
-      ];
-
-  const canToggleSent = invoice.status === 'draft' || invoice.status === 'sent';
-  const isSent = invoice.status === 'sent';
-  const isPaid = invoice.status === 'paid';
+  const attachments = invoice.attachments ?? [];
 
   return (
     <>
@@ -224,18 +195,26 @@ export function InvoiceDetailModal({
           </Box>
 
           <Box>
-            <Flex justify="space-between" align="center" mb={3} gap={3} wrap="wrap">
-              <Text fontSize="md" fontWeight="semibold" color="gray.800">
-                Chứng từ thanh toán
-              </Text>
-              <Button size="sm" variant="outline" onClick={onUploadProof}>
-                Upload ảnh
-              </Button>
-            </Flex>
-            <Flex flexWrap="wrap" gap={3}>
-              {attachments.map(att => (
-                <Box key={att.id} textAlign="center">
-                  {att.url ? (
+            <Text fontSize="md" fontWeight="semibold" color="gray.800" mb={3}>
+              Chứng từ thanh toán
+            </Text>
+            {attachments.length === 0 ? (
+              <Box
+                border="1px dashed"
+                borderColor="gray.300"
+                borderRadius="md"
+                py={6}
+                px={4}
+                textAlign="center"
+                color="gray.500"
+                fontSize="sm"
+              >
+                Chưa có chứng từ nào được đính kèm.
+              </Box>
+            ) : (
+              <Flex flexWrap="wrap" gap={3}>
+                {attachments.map((att) => (
+                  <Box key={att.id} textAlign="center">
                     <Box
                       h="110px"
                       w="120px"
@@ -256,36 +235,10 @@ export function InvoiceDetailModal({
                         {att.uploadedAt ? `Tải lên ${formatDateTime(att.uploadedAt)}` : 'Đã đính kèm'}
                       </Text>
                     </Box>
-                  ) : (
-                    <Box
-                      h="110px"
-                      w="120px"
-                      borderRadius="md"
-                      border="1px dashed"
-                      borderColor="gray.300"
-                      className="skeleton-box"
-                      display="flex"
-                      flexDirection="column"
-                      alignItems="center"
-                      justifyContent="center"
-                      gap={2}
-                    >
-                      <Text fontSize="xs" fontWeight="semibold" color="gray.600">
-                        {att.name || 'Chứng từ'}
-                      </Text>
-                      <Text fontSize="xs" color="gray.500">
-                        Skeleton preview
-                      </Text>
-                    </Box>
-                  )}
-                  {!att.url && (
-                    <Text mt={2} fontSize="xs" color="gray.500">
-                      S3 integration sắp tới
-                    </Text>
-                  )}
-                </Box>
-              ))}
-            </Flex>
+                  </Box>
+                ))}
+              </Flex>
+            )}
           </Box>
 
           <Box borderTop="1px solid" borderColor="gray.200" />
@@ -294,20 +247,6 @@ export function InvoiceDetailModal({
             <Button variant="outline" onClick={onClose}>
               Đóng
             </Button>
-            {canToggleSent && (
-              <Button
-                colorScheme="blue"
-                variant={isSent ? 'solid' : 'outline'}
-                onClick={onToggleSent}
-              >
-                {isSent ? 'Đã gửi' : 'Đánh dấu đã gửi'}
-              </Button>
-            )}
-            {!isPaid && (
-              <Button colorScheme="green" onClick={onMarkPaid}>
-                Đánh dấu thanh toán
-              </Button>
-            )}
           </Flex>
         </Box>
       </Box>

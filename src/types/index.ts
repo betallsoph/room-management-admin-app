@@ -98,6 +98,8 @@ export interface InvoiceAttachment {
 }
 
 export interface Invoice {
+  buildingId?: string;
+  blockId?: string;
   id: string;
   tenantId: string;
   roomId: string;

@@ -1,6 +1,8 @@
 // Sidebar Navigation Component
-import { Box, VStack, Link as ChakraLink, Icon, Text, Flex } from '@chakra-ui/react';
-import { Link, useLocation } from 'react-router-dom';
+import { Box, VStack, Link as ChakraLink, Icon, Text, Flex, Button } from '@chakra-ui/react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useCallback } from 'react';
+import { appToaster } from '../lib/toaster';
 
 // Icons từ Chakra UI (dùng SVG path)
 const HomeIcon = () => (
@@ -40,6 +42,12 @@ const SettingsIcon = () => (
   </svg>
 );
 
+const LogoutIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M14 17l1.41-1.41L12.83 13H21v-2h-8.17l2.58-2.59L14 7l-5 5 5 5zm-8 3h6v-2H8V6h4V4H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
 interface NavItem {
   name: string;
   path: string;
@@ -57,6 +65,14 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = useCallback(() => {
+    window.localStorage.removeItem('room-admin-auth');
+    window.sessionStorage.removeItem('room-admin-auth');
+    appToaster.info({ title: 'Đã đăng xuất', description: 'Vui lòng đăng nhập lại để tiếp tục.' });
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
   return (
     <Box
@@ -68,7 +84,8 @@ export function Sidebar() {
       bg="white"
       borderRight="1px"
       borderColor="gray.200"
-      display={{ base: 'none', lg: 'block' }}
+      display={{ base: 'none', lg: 'flex' }}
+      flexDirection="column"
       zIndex="20"
     >
       {/* Logo */}
@@ -79,38 +96,56 @@ export function Sidebar() {
       </Box>
       
       {/* Navigation Links */}
-      <VStack align="stretch" gap={1} p={4} pt={6}>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
-          return (
-            <ChakraLink key={item.path} asChild>
-              <Link
-                to={item.path}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '0.375rem',
-                  backgroundColor: isActive ? '#EBF8FF' : 'transparent',
-                  color: isActive ? '#3182CE' : '#4A5568',
-                  fontWeight: isActive ? 600 : 400,
-                  transition: 'all 0.2s',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = '#F7FAFC';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-              >
-                <Icon as={item.icon} mr={3} />
-                {item.name}
-              </Link>
-            </ChakraLink>
-          );
-        })}
-      </VStack>
+      <Flex direction="column" flex="1" justify="space-between">
+        <VStack align="stretch" gap={1} p={4} pt={6} flex="1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            return (
+              <ChakraLink key={item.path} asChild>
+                <Link
+                  to={item.path}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '0.375rem',
+                    backgroundColor: isActive ? '#EBF8FF' : 'transparent',
+                    color: isActive ? '#3182CE' : '#4A5568',
+                    fontWeight: isActive ? 600 : 400,
+                    transition: 'all 0.2s',
+                    textDecoration: 'none',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = '#F7FAFC';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <Icon as={item.icon} mr={3} />
+                  {item.name}
+                </Link>
+              </ChakraLink>
+            );
+          })}
+        </VStack>
+
+        <Box p={4} pt={0}>
+          <Button
+            onClick={handleLogout}
+            w="full"
+            variant="outline"
+            colorScheme="red"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            gap={2}
+          >
+            <Icon as={LogoutIcon} boxSize={4} />
+            Đăng xuất
+          </Button>
+        </Box>
+      </Flex>
     </Box>
   );
 }

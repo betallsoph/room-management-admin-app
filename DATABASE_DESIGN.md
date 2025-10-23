@@ -1,93 +1,102 @@
-# Database Design - MongoDB + Mongoose
+# Database Design – Room Manager Admin Platform
 
-## 🗄️ Tech Stack
-
-- **Database**: MongoDB
-- **ODM**: Mongoose
-- **Language**: TypeScript
-- **Hosting**: MongoDB Atlas (free tier 512MB)
+> Tài liệu này gửi cho team backend để xây dựng API / database đúng với giao diện React Admin hiện tại.  
+> Frontend đã có các trang: Buildings, Blocks, Floors (derived), Rooms, Tenants, Invoices, Notifications, Utility Readings, Maintenance, Documents, Payments.
 
 ---
 
-## 📊 Simplified Data Structure
+## 1. Kiến trúc tổng quan
 
-```
-Building (Căn hộ)
-    ↓
-Block (Dãy/Khu)
-    ↓
-Room (Phòng)
-    ↓
-Tenant (Khách thuê)
-```
-
-**✨ Đã bỏ Floor (Tầng) để đơn giản hóa!**
+| Layer            | Lựa chọn đề xuất                                       |
+|------------------|--------------------------------------------------------|
+| Database         | MongoDB Atlas (free tier 512 MB)                        |
+| ODM              | Mongoose + TypeScript                                  |
+| Server           | Express.js (Node 20+)                                   |
+| Auth             | JWT access token (optional refresh token)              |
+| Hosting          | Render / Railway / Heroku (tùy team backend)           |
 
 ---
 
-## 🏗️ MongoDB Schema Design
+## 2. Mô hình dữ liệu gắn với UI
 
-### 1. Building Schema
+```
+Building (Tòa nhà/Căn hộ)
+  └─ Block (Block/Dãy)
+       └─ Room (Phòng – chứa floorNumber)
+            └─ Tenant (Khách thuê chủ động)
+                 └─ Contract (tuỳ chọn, gắn với tenant-room)
+```
 
-```typescript
-// models/Building.ts
-import mongoose, { Schema, Document } from 'mongoose';
+- Trang **Floors** của frontend chỉ derive từ `room.floorNumber` → không cần bảng riêng.
+- Các module khác (Invoice, Utility Reading, Maintenance Ticket, Document, Payment, Notification) tham chiếu tới `roomId` và/hoặc `tenantId`.
+
+### 2.1 Bảng field chính cho từng collection
+
+| Collection | Các trường quan trọng | Ghi chú liên quan tới UI |
+|------------|-----------------------|---------------------------|
+| `buildings` | `name`, `address`, `description`, `totalBlocks`, `defaultAmenities` | Trang Buildings + filter phòng theo tòa |
+| `blocks` | `buildingId`, `name`, `description`, `totalFloors`, `totalRooms` | Trang Blocks cần totalFloors để hiển thị |
+| `rooms` | `buildingId`, `blockId`, `floorNumber`, `roomNumber`, `name`, `price`, `area`, `capacity`, `status`, `amenities`, `description` | Trang Rooms + Floors; filter theo building/block/status/floor |
+| `tenants` | `roomId`, `fullName`, `phone`, `email`, `idCard`, `dateOfBirth`, `moveInDate`, `deposit`, `monthlyRent`, `status`, `emergencyContact`, `notes` | Trang Tenants và modal chi tiết |
+| `invoices` | `buildingId`, `blockId`, `roomId`, `tenantId`, `period (YYYY-MM)`, `status`, `lineItems[]`, `totalAmount`, `balanceDue`, `sentAt`, `paidAt`, `dueDate`, `attachments[]` | Trang Invoices + modal chi tiết với line items |
+| `notifications` | `title`, `content`, `targetType (all/building/block/room/tenant)`, `targetIds[]`, `status`, `createdAt` | Trang Thông báo |
+| `utilityReadings` | `roomId`, `tenantId`, `type (electric/water)`, `value`, `status (pending/verified/rejected)`, `submittedAt`, `verifiedAt`, `note` | Module Utility (đã mô tả trong product scope) |
+| `maintenanceTickets` | `roomId`, `tenantId`, `title`, `description`, `status`, `priority`, `assigneeId`, `attachments[]`, `timeline[]` | Module Maintenance |
+| `documents` | `ownerId`, `roomId`, `type`, `fileUrl`, `sharedWith[]`, `metadata` | Upload hồ sơ cho tenant |
+| `payments` | `invoiceId`, `roomId`, `tenantId`, `amount`, `method`, `status`, `paidAt`, `receiptUrl`, `note` | Gắn với invoice |
+| `messages` (optional) | `conversationId`, `senderId`, `recipientId`, `content`, `attachments`, `readAt` | Module chat |
+
+---
+
+## 3. Schema chi tiết (Mongoose + TypeScript)
+
+> Dưới đây là skeleton TypeScript để backend implement nhanh. Có thể tách ra thành file riêng trong `src/models`.
+
+### 3.1 Building
+
+```ts
+import { Schema, model, Document } from 'mongoose';
 
 export interface IBuilding extends Document {
   name: string;
   address: string;
   description?: string;
   totalBlocks: number;
+  defaultAmenities: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 const BuildingSchema = new Schema<IBuilding>(
   {
-    name: { 
-      type: String, 
-      required: true,
-      trim: true 
-    },
-    address: { 
-      type: String, 
-      required: true 
-    },
-    description: { 
-      type: String 
-    },
-    totalBlocks: { 
-      type: Number, 
-      default: 0 
-    },
+    name: { type: String, required: true, trim: true },
+    address: { type: String, required: true },
+    description: { type: String },
+    totalBlocks: { type: Number, default: 0 },
+    defaultAmenities: [{ type: String }],
   },
-  { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Virtual populate blocks
 BuildingSchema.virtual('blocks', {
   ref: 'Block',
   localField: '_id',
-  foreignField: 'buildingId'
+  foreignField: 'buildingId',
 });
 
-export default mongoose.model<IBuilding>('Building', BuildingSchema);
+export default model<IBuilding>('Building', BuildingSchema);
 ```
 
-### 2. Block Schema
+### 3.2 Block
 
-```typescript
-// models/Block.ts
-import mongoose, { Schema, Document } from 'mongoose';
+```ts
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IBlock extends Document {
-  buildingId: mongoose.Types.ObjectId;
+  buildingId: Types.ObjectId;
   name: string;
   description?: string;
+  totalFloors: number;
   totalRooms: number;
   createdAt: Date;
   updatedAt: Date;
@@ -95,69 +104,50 @@ export interface IBlock extends Document {
 
 const BlockSchema = new Schema<IBlock>(
   {
-    buildingId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Building',
-      required: true,
-      index: true
-    },
-    name: { 
-      type: String, 
-      required: true,
-      trim: true
-    },
-    description: { 
-      type: String 
-    },
-    totalRooms: { 
-      type: Number, 
-      default: 0 
-    },
+    buildingId: { type: Schema.Types.ObjectId, ref: 'Building', required: true, index: true },
+    name: { type: String, required: true, trim: true },
+    description: { type: String },
+    totalFloors: { type: Number, default: 0 },
+    totalRooms: { type: Number, default: 0 },
   },
-  { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Index for queries
-BlockSchema.index({ buildingId: 1, name: 1 });
+BlockSchema.index({ buildingId: 1, name: 1 }, { unique: true });
 
-// Virtual populate rooms
 BlockSchema.virtual('rooms', {
   ref: 'Room',
   localField: '_id',
-  foreignField: 'blockId'
+  foreignField: 'blockId',
 });
 
-// Cascade delete rooms when block is deleted
-BlockSchema.pre('remove', async function(next) {
-  await mongoose.model('Room').deleteMany({ blockId: this._id });
+BlockSchema.pre('remove', async function (next) {
+  await model('Room').deleteMany({ blockId: this._id });
   next();
 });
 
-export default mongoose.model<IBlock>('Block', BlockSchema);
+export default model<IBlock>('Block', BlockSchema);
 ```
 
-### 3. Room Schema
+### 3.3 Room
 
-```typescript
-// models/Room.ts
-import mongoose, { Schema, Document } from 'mongoose';
+```ts
+import { Schema, model, Document, Types } from 'mongoose';
 
 export enum RoomStatus {
   AVAILABLE = 'available',
   OCCUPIED = 'occupied',
   MAINTENANCE = 'maintenance',
-  RESERVED = 'reserved'
+  RESERVED = 'reserved',
 }
 
 export interface IRoom extends Document {
-  blockId: mongoose.Types.ObjectId;
+  buildingId: Types.ObjectId;
+  blockId: Types.ObjectId;
+  floorNumber: number;
   roomNumber: string;
   name: string;
-  area: number; // m²
+  area: number;
   capacity: number;
   price: number;
   status: RoomStatus;
@@ -169,92 +159,56 @@ export interface IRoom extends Document {
 
 const RoomSchema = new Schema<IRoom>(
   {
-    blockId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Block',
-      required: true,
-      index: true
-    },
-    roomNumber: { 
-      type: String, 
-      required: true,
-      unique: true,
-      trim: true
-    },
-    name: { 
-      type: String, 
-      required: true 
-    },
-    area: { 
-      type: Number, 
-      required: true 
-    },
-    capacity: { 
-      type: Number, 
-      default: 2 
-    },
-    price: { 
-      type: Number, 
-      required: true 
-    },
-    status: { 
-      type: String, 
-      enum: Object.values(RoomStatus),
-      default: RoomStatus.AVAILABLE,
-      index: true
-    },
-    amenities: [{ 
-      type: String 
-    }],
-    description: { 
-      type: String 
-    },
+    buildingId: { type: Schema.Types.ObjectId, ref: 'Building', required: true, index: true },
+    blockId: { type: Schema.Types.ObjectId, ref: 'Block', required: true, index: true },
+    floorNumber: { type: Number, min: 0, default: 0, index: true },
+    roomNumber: { type: String, required: true, trim: true },
+    name: { type: String, required: true },
+    area: { type: Number, required: true },
+    capacity: { type: Number, default: 2 },
+    price: { type: Number, required: true },
+    status: { type: String, enum: Object.values(RoomStatus), default: RoomStatus.AVAILABLE, index: true },
+    amenities: [{ type: String }],
+    description: { type: String },
   },
-  { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Indexes
-RoomSchema.index({ blockId: 1, status: 1 });
-RoomSchema.index({ roomNumber: 1 });
+RoomSchema.index({ buildingId: 1, blockId: 1, floorNumber: 1 });
+RoomSchema.index({ blockId: 1, roomNumber: 1 }, { unique: true });
 
-// Virtual populate tenants
 RoomSchema.virtual('tenants', {
   ref: 'Tenant',
   localField: '_id',
-  foreignField: 'roomId'
+  foreignField: 'roomId',
 });
 
-// Cascade delete tenants when room is deleted
-RoomSchema.pre('remove', async function(next) {
-  await mongoose.model('Tenant').deleteMany({ roomId: this._id });
+RoomSchema.pre('remove', async function (next) {
+  await model('Tenant').updateMany({ roomId: this._id }, { status: 'expired' });
+  await model('Invoice').deleteMany({ roomId: this._id });
   next();
 });
 
-export default mongoose.model<IRoom>('Room', RoomSchema);
+export default model<IRoom>('Room', RoomSchema);
 ```
 
-### 4. Tenant Schema
+### 3.4 Tenant
 
-```typescript
-// models/Tenant.ts
-import mongoose, { Schema, Document } from 'mongoose';
+```ts
+import { Schema, model, Document, Types } from 'mongoose';
 
 export enum TenantStatus {
   ACTIVE = 'active',
   EXPIRED = 'expired',
-  PENDING = 'pending'
+  PENDING = 'pending',
 }
 
 export interface ITenant extends Document {
-  roomId: mongoose.Types.ObjectId;
+  roomId: Types.ObjectId;
   fullName: string;
   phone: string;
   email?: string;
-  idCard: string; // CMND/CCCD
+  idCard: string;
   dateOfBirth: Date;
   hometown?: string;
   moveInDate: Date;
@@ -262,6 +216,11 @@ export interface ITenant extends Document {
   deposit: number;
   monthlyRent: number;
   status: TenantStatus;
+  emergencyContact?: {
+    fullName: string;
+    phone: string;
+    relationship?: string;
+  };
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -269,532 +228,333 @@ export interface ITenant extends Document {
 
 const TenantSchema = new Schema<ITenant>(
   {
-    roomId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Room',
-      required: true,
-      index: true
+    roomId: { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
+    fullName: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    idCard: { type: String, required: true, trim: true },
+    dateOfBirth: { type: Date, required: true },
+    hometown: { type: String },
+    moveInDate: { type: Date, required: true },
+    moveOutDate: { type: Date },
+    deposit: { type: Number, required: true },
+    monthlyRent: { type: Number, required: true },
+    status: { type: String, enum: Object.values(TenantStatus), default: TenantStatus.ACTIVE, index: true },
+    emergencyContact: {
+      fullName: String,
+      phone: String,
+      relationship: String,
     },
-    fullName: { 
-      type: String, 
-      required: true,
-      trim: true
-    },
-    phone: { 
-      type: String, 
-      required: true,
-      trim: true
-    },
-    email: { 
-      type: String,
-      trim: true,
-      lowercase: true
-    },
-    idCard: { 
-      type: String, 
-      required: true,
-      trim: true
-    },
-    dateOfBirth: { 
-      type: Date, 
-      required: true 
-    },
-    hometown: { 
-      type: String 
-    },
-    moveInDate: { 
-      type: Date, 
-      required: true 
-    },
-    moveOutDate: { 
-      type: Date 
-    },
-    deposit: { 
-      type: Number, 
-      required: true 
-    },
-    monthlyRent: { 
-      type: Number, 
-      required: true 
-    },
-    status: { 
-      type: String, 
-      enum: Object.values(TenantStatus),
-      default: TenantStatus.ACTIVE,
-      index: true
-    },
-    notes: { 
-      type: String 
-    },
+    notes: { type: String },
   },
-  { 
-    timestamps: true 
-  }
+  { timestamps: true }
 );
 
-// Indexes
 TenantSchema.index({ roomId: 1, status: 1 });
 TenantSchema.index({ phone: 1 });
 TenantSchema.index({ idCard: 1 });
 
-export default mongoose.model<ITenant>('Tenant', TenantSchema);
+export default model<ITenant>('Tenant', TenantSchema);
 ```
 
-### 5. Invoice Schema (Optional - for later)
+### 3.5 Invoice
 
-```typescript
-// models/Invoice.ts
-import mongoose, { Schema, Document } from 'mongoose';
+```ts
+import { Schema, model, Document, Types } from 'mongoose';
 
 export enum InvoiceStatus {
-  PENDING = 'pending',
+  DRAFT = 'draft',
+  SENT = 'sent',
   PAID = 'paid',
   OVERDUE = 'overdue',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
 }
 
 export interface IInvoice extends Document {
-  tenantId: mongoose.Types.ObjectId;
-  roomId: mongoose.Types.ObjectId;
-  month: Date;
-  rentAmount: number;
-  electricFee: number;
-  waterFee: number;
-  otherFees: number;
-  totalAmount: number;
+  buildingId: Types.ObjectId;
+  blockId: Types.ObjectId;
+  roomId: Types.ObjectId;
+  tenantId: Types.ObjectId;
+  period: string; // ví dụ: 2024-03
   status: InvoiceStatus;
+  lineItems: Array<{
+    label: string;
+    amount: number;
+    quantity?: number;
+    unit?: string;
+    description?: string;
+  }>;
+  totalAmount: number;
+  balanceDue: number;
+  sentAt?: Date;
   paidAt?: Date;
   dueDate: Date;
   notes?: string;
+  attachments?: Array<{ name: string; url: string; uploadedAt: Date }>;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const InvoiceSchema = new Schema<IInvoice>(
   {
-    tenantId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Tenant',
-      required: true,
-      index: true
-    },
-    roomId: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Room',
-      required: true,
-      index: true
-    },
-    month: { 
-      type: Date, 
-      required: true,
-      index: true
-    },
-    rentAmount: { 
-      type: Number, 
-      required: true 
-    },
-    electricFee: { 
-      type: Number, 
-      default: 0 
-    },
-    waterFee: { 
-      type: Number, 
-      default: 0 
-    },
-    otherFees: { 
-      type: Number, 
-      default: 0 
-    },
-    totalAmount: { 
-      type: Number, 
-      required: true 
-    },
-    status: { 
-      type: String, 
-      enum: Object.values(InvoiceStatus),
-      default: InvoiceStatus.PENDING,
-      index: true
-    },
-    paidAt: { 
-      type: Date 
-    },
-    dueDate: { 
-      type: Date, 
-      required: true 
-    },
-    notes: { 
-      type: String 
-    },
+    buildingId: { type: Schema.Types.ObjectId, ref: 'Building', index: true },
+    blockId: { type: Schema.Types.ObjectId, ref: 'Block', index: true },
+    roomId: { type: Schema.Types.ObjectId, ref: 'Room', required: true, index: true },
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
+    period: { type: String, required: true, match: /^\d{4}-\d{2}$/, index: true },
+    status: { type: String, enum: Object.values(InvoiceStatus), default: InvoiceStatus.DRAFT, index: true },
+    lineItems: [
+      {
+        label: { type: String, required: true },
+        amount: { type: Number, required: true },
+        quantity: Number,
+        unit: String,
+        description: String,
+      },
+    ],
+    totalAmount: { type: Number, required: true },
+    balanceDue: { type: Number, required: true },
+    sentAt: Date,
+    paidAt: Date,
+    dueDate: { type: Date, required: true },
+    notes: String,
+    attachments: [
+      {
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
-  { 
-    timestamps: true 
-  }
+  { timestamps: true }
 );
 
-// Compound index
-InvoiceSchema.index({ tenantId: 1, month: 1 }, { unique: true });
+InvoiceSchema.index({ tenantId: 1, period: 1 }, { unique: true });
 
-export default mongoose.model<IInvoice>('Invoice', InvoiceSchema);
+export default model<IInvoice>('Invoice', InvoiceSchema);
+```
+
+> Các collection khác (notifications, utilityReadings, maintenanceTickets, documents, payments) có thể khai triển tương tự – giữ đúng trường như bảng tổng quan mục 2.1.
+
+---
+
+## 4. API contract (tối thiểu để frontend hoạt động)
+
+| Resource | Method | Endpoint | Mô tả |
+|----------|--------|----------|-------|
+| Building | GET | `/api/buildings` | Pagination + search (`keyword`, `page`, `limit`) |
+|          | POST | `/api/buildings` | Tạo mới |
+|          | GET | `/api/buildings/:id` | Chi tiết + thống kê blocks/rooms |
+|          | PUT | `/api/buildings/:id` | Cập nhật |
+|          | DELETE | `/api/buildings/:id` | Cascade block → room → tenant |
+| Block | GET | `/api/buildings/:buildingId/blocks` | Danh sách block của tòa |
+|       | POST | `/api/blocks` | Tạo block |
+|       | PUT/DELETE | `/api/blocks/:id` | Cập nhật/xóa |
+| Room | GET | `/api/rooms` | Filter `buildingId`, `blockId`, `status`, `floorNumber`, `search` |
+|      | POST | `/api/rooms` | Tạo phòng |
+|      | GET | `/api/rooms/:id` | Chi tiết (populate tenant active) |
+|      | PUT/DELETE | `/api/rooms/:id` | Cập nhật/xóa |
+| Tenant | GET | `/api/tenants` | Filter theo room/block/building/status |
+|        | POST | `/api/tenants` | Tạo tenant mới, set room status `occupied` |
+|        | GET | `/api/tenants/:id` | Chi tiết + populate room → block → building |
+|        | PUT | `/api/tenants/:id` | Cập nhật hồ sơ/emergency contact |
+|        | DELETE | `/api/tenants/:id` | Chuyển room về `available`, lưu history |
+| Invoice | GET | `/api/invoices` | Filter `period`, `status`, `tenantId`, `roomId`, `buildingId`, `blockId` |
+|         | POST | `/api/invoices` | Tạo invoice mới (`tenantId`, `roomId`, `period`, `dueDate`, `status`, `lineItems[]`, `notes`) |
+|         | PUT | `/api/invoices/:id` | Cập nhật line items / note / dueDate |
+|         | POST | `/api/invoices/:id/attachments` | Upload chứng từ |
+|         | PATCH | `/api/invoices/:id/status` | Toggle `sent`, `paid` (kèm timestamps) |
+| Notifications | POST | `/api/notifications` | Gửi notification (admin) |
+|               | GET | `/api/notifications` | Lọc theo targetType, trạng thái |
+| Utility Readings | GET/POST/PUT | `/api/utility-readings*` | Theo spec trong Swagger guide |
+| Maintenance Tickets | GET/POST/PUT | `/api/maintenance-tickets*` | Như product scope |
+| Auth | POST | `/api/auth/login` | Email/password → JWT |
+|      | GET | `/api/auth/me` | Thông tin admin |
+
+**Response format đề xuất:**
+```json
+{
+  "success": true,
+  "data": { },
+  "meta": { "page": 1, "limit": 20, "total": 200 }
+}
+```
+
+**Error format:**
+```json
+{
+  "success": false,
+  "error": "MESSAGE",
+  "code": "ERROR_CODE"
+}
+```
+
+> Ghi chú: Modal "Tạo hoá đơn" trên frontend gửi payload với các trường `tenantId`, `roomId`, `period`, `dueDate`, `status`, `lineItems[]`, `notes`. Nếu status = `sent` hoặc `paid`, backend nên set `sentAt`, `paidAt`, đồng thời cập nhật `balanceDue` (0 khi paid).
+> Hoá đơn trạng thái `draft` mới cho phép cập nhật/xoá; khi backend nhận yêu cầu update/delete cần kiểm tra trạng thái để đảm bảo đúng hành vi UI.
+
+---
+
+## 5. Quan hệ, cascade & hooks
+
+| Hành động | Ảnh hưởng |
+|-----------|-----------|
+| Xóa Building | Xóa tất cả Blocks, Rooms, Tenants, Invoices, UtilityReadings, MaintenanceTickets liên quan (transaction). |
+| Xóa Block | Xóa Rooms, Tenants, Invoices trong block. |
+| Xóa Room | Set tenant `status = expired`, tạo entry move-out, xóa invoices chưa thanh toán. |
+| Tạo Tenant | Cập nhật `room.status = occupied`, set `moveInDate`, `monthlyRent` = giá phòng nếu chưa nhập. |
+| Xóa Tenant | Set `room.status = available`, ghi lại `moveOutDate`. |
+| Mark Invoice paid | Ghi nhận thành `payments` collection. |
+
+**Indexes quan trọng:**
+- `buildings.name` (text search)
+- `blocks` => `{ buildingId: 1, name: 1 }`
+- `rooms` => `{ buildingId: 1, blockId: 1, floorNumber: 1 }`, `{ blockId: 1, roomNumber: 1 } unique, `{ status: 1 }`
+- `tenants` => `{ roomId: 1, status: 1 }`, `{ phone: 1 }`, `{ idCard: 1 }`
+- `invoices` => `{ tenantId: 1, period: 1 } unique`
+
+---
+
+## 6. Sample documents
+
+```jsonc
+// building
+{
+  "_id": "65f21b4c98b1a1f4e3d2c111",
+  "name": "Sunrise Riverside",
+  "address": "123 Nguyễn Văn Linh, Quận 7",
+  "description": "Căn hộ cao cấp, 2 block chính",
+  "totalBlocks": 2,
+  "defaultAmenities": ["Thang máy", "Bảo vệ 24/7", "Giữ xe"],
+  "createdAt": "2024-03-01T09:00:00.000Z",
+  "updatedAt": "2024-03-01T09:00:00.000Z"
+}
+
+// block
+{
+  "_id": "65f21c20a5f332f4e3d2c222",
+  "buildingId": "65f21b4c98b1a1f4e3d2c111",
+  "name": "Block A1",
+  "description": "Block view sông",
+  "totalFloors": 25,
+  "totalRooms": 150,
+  "createdAt": "2024-03-01T09:05:00.000Z",
+  "updatedAt": "2024-03-01T09:05:00.000Z"
+}
+
+// room
+{
+  "_id": "65f21d98bd1c44f4e3d2c333",
+  "buildingId": "65f21b4c98b1a1f4e3d2c111",
+  "blockId": "65f21c20a5f332f4e3d2c222",
+  "floorNumber": 16,
+  "roomNumber": "A1-16-06",
+  "name": "Phòng A1-16-06",
+  "area": 28,
+  "capacity": 2,
+  "price": 3500000,
+  "status": "available",
+  "amenities": ["Điều hòa", "Nóng lạnh", "Ban công"],
+  "createdAt": "2024-03-01T09:10:00.000Z",
+  "updatedAt": "2024-03-01T09:10:00.000Z"
+}
+
+// tenant
+{
+  "_id": "65f21e1117d7aaf4e3d2c444",
+  "roomId": "65f21d98bd1c44f4e3d2c333",
+  "fullName": "Nguyễn Văn A",
+  "phone": "0901234567",
+  "email": "a.nguyen@example.com",
+  "idCard": "012345678901",
+  "dateOfBirth": "1995-03-15T00:00:00.000Z",
+  "moveInDate": "2024-01-15T00:00:00.000Z",
+  "deposit": 5000000,
+  "monthlyRent": 3500000,
+  "status": "active",
+  "emergencyContact": {
+    "fullName": "Nguyễn Văn B",
+    "phone": "0907654321",
+    "relationship": "Anh trai"
+  },
+  "createdAt": "2024-03-01T09:15:00.000Z",
+  "updatedAt": "2024-03-01T09:15:00.000Z"
+}
+
+// invoice
+{
+  "_id": "65f21f1a7be421f4e3d2c555",
+  "buildingId": "65f21b4c98b1a1f4e3d2c111",
+  "blockId": "65f21c20a5f332f4e3d2c222",
+  "roomId": "65f21d98bd1c44f4e3d2c333",
+  "tenantId": "65f21e1117d7aaf4e3d2c444",
+  "period": "2024-03",
+  "status": "sent",
+  "lineItems": [
+    { "label": "Tiền phòng", "amount": 3500000 },
+    { "label": "Điện", "amount": 220000, "description": "145 kWh" },
+    { "label": "Nước", "amount": 90000, "description": "10 m³" },
+    { "label": "Phí dịch vụ", "amount": 110000 }
+  ],
+  "totalAmount": 3920000,
+  "balanceDue": 3920000,
+  "sentAt": "2024-03-01T09:20:00.000Z",
+  "dueDate": "2024-03-05T00:00:00.000Z",
+  "createdAt": "2024-03-01T09:20:00.000Z",
+  "updatedAt": "2024-03-01T09:20:00.000Z"
+}
 ```
 
 ---
 
-## 🔌 Database Connection
+## 7. Phân quyền & JWT payload
 
-```typescript
-// config/database.ts
-import mongoose from 'mongoose';
+| Role     | Quyền |
+|----------|-------|
+| `admin`  | CRUD tất cả dữ liệu, gửi thông báo, xem báo cáo |
+| `staff`  | CRUD block/room/tenant trong building được assign |
+| `tenant` | Xem phòng, invoices của mình, gửi utility readings, maintenance tickets |
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || '', {
-      // Options (most are default in Mongoose 6+)
-    });
-
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
-  }
-};
-
-export default connectDB;
-```
-
-```typescript
-// server.ts
-import express from 'express';
-import connectDB from './config/database';
-
-const app = express();
-
-// Connect to MongoDB
-connectDB();
-
-// Middleware
-app.use(express.json());
-
-// Routes
-app.use('/api/admin', adminRoutes);
-app.use('/api/client', clientRoutes);
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+JWT payload đề xuất:
+```json
+{
+  "sub": "userId",
+  "role": "admin",
+  "buildingIds": ["..."] // optional: giới hạn staff
+}
 ```
 
 ---
 
-## 📝 API Examples with Mongoose
+## 8. Lưu ý triển khai
 
-### Get Tenant with full hierarchy
-
-```typescript
-// routes/admin/tenants.ts
-import { Router } from 'express';
-import Tenant from '../../models/Tenant';
-
-const router = Router();
-
-// GET /api/admin/tenants/:id
-router.get('/:id', async (req, res) => {
-  try {
-    const tenant = await Tenant.findById(req.params.id)
-      .populate({
-        path: 'roomId',
-        populate: {
-          path: 'blockId',
-          populate: {
-            path: 'buildingId'
-          }
-        }
-      });
-
-    if (!tenant) {
-      return res.status(404).json({ error: 'Tenant not found' });
-    }
-
-    res.json(tenant);
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-export default router;
-```
-
-### Create Tenant with validation
-
-```typescript
-// POST /api/admin/tenants
-router.post('/', async (req, res) => {
-  try {
-    const { roomId, fullName, phone, idCard, dateOfBirth, moveInDate, deposit, monthlyRent } = req.body;
-
-    // 1. Check room exists
-    const room = await Room.findById(roomId).populate('blockId');
-    if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
-    }
-
-    // 2. Check room is available
-    if (room.status !== RoomStatus.AVAILABLE) {
-      return res.status(400).json({ error: 'Room is not available' });
-    }
-
-    // 3. Check no active tenant in this room
-    const existingTenant = await Tenant.findOne({
-      roomId,
-      status: TenantStatus.ACTIVE
-    });
-
-    if (existingTenant) {
-      return res.status(400).json({ error: 'Room already occupied' });
-    }
-
-    // 4. Create tenant & update room (Transaction with session)
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const tenant = await Tenant.create([{
-        roomId,
-        fullName,
-        phone,
-        idCard,
-        dateOfBirth,
-        moveInDate,
-        deposit,
-        monthlyRent,
-        status: TenantStatus.ACTIVE
-      }], { session });
-
-      // Update room status
-      await Room.findByIdAndUpdate(
-        roomId,
-        { status: RoomStatus.OCCUPIED },
-        { session }
-      );
-
-      await session.commitTransaction();
-      
-      res.status(201).json(tenant[0]);
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-```
-
-### Get statistics
-
-```typescript
-// GET /api/admin/dashboard/stats
-router.get('/dashboard/stats', async (req, res) => {
-  try {
-    // Total buildings
-    const totalBuildings = await Building.countDocuments();
-
-    // Total blocks
-    const totalBlocks = await Block.countDocuments();
-
-    // Total rooms
-    const totalRooms = await Room.countDocuments();
-
-    // Occupied rooms
-    const occupiedRooms = await Room.countDocuments({ 
-      status: RoomStatus.OCCUPIED 
-    });
-
-    // Available rooms
-    const availableRooms = await Room.countDocuments({ 
-      status: RoomStatus.AVAILABLE 
-    });
-
-    // Active tenants
-    const activeTenants = await Tenant.countDocuments({ 
-      status: TenantStatus.ACTIVE 
-    });
-
-    // Revenue this month
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const revenue = await Invoice.aggregate([
-      {
-        $match: {
-          month: { $gte: startOfMonth },
-          status: InvoiceStatus.PAID
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: '$totalAmount' }
-        }
-      }
-    ]);
-
-    res.json({
-      totalBuildings,
-      totalBlocks,
-      totalRooms,
-      occupiedRooms,
-      availableRooms,
-      activeTenants,
-      monthlyRevenue: revenue[0]?.total || 0,
-      occupancyRate: totalRooms > 0 
-        ? ((occupiedRooms / totalRooms) * 100).toFixed(1)
-        : 0
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-```
+1. **Transactions**: dùng `session` khi xóa building/block để đảm bảo cascade.  
+2. **Pagination & filter**: mọi list API hỗ trợ `page`, `limit`, `sort`, `keyword`.  
+3. **Search**: `keyword` áp dụng cho building name, block name, roomNumber, tenant name/phone. Có thể dùng `$text` hoặc Atlas Search.  
+4. **Seeding**: cung cấp script tạo 1–2 building với data mẫu để frontend dev test.  
+5. **Swagger/OpenAPI**: cập nhật file `swaggerSpec` theo bảng endpoint ở mục 4.  
+6. **CORS**: mở cho `http://localhost:5173` trong môi trường dev.  
+7. **Error handling**: thống nhất format `{ success: false, error, code }`.  
+8. **Logging & metrics**: optional nhưng nên log các thao tác quan trọng (tạo invoice, mark paid).
 
 ---
 
-## 🗑️ Cascade Delete Logic
+## 9. Checklist bàn giao backend
 
-```typescript
-// When deleting building, cascade delete blocks, rooms, tenants
-router.delete('/buildings/:id', async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const buildingId = req.params.id;
-
-    // Get all blocks in building
-    const blocks = await Block.find({ buildingId }).session(session);
-    const blockIds = blocks.map(b => b._id);
-
-    // Get all rooms in blocks
-    const rooms = await Room.find({ blockId: { $in: blockIds } }).session(session);
-    const roomIds = rooms.map(r => r._id);
-
-    // Delete tenants in rooms
-    await Tenant.deleteMany({ roomId: { $in: roomIds } }).session(session);
-
-    // Delete rooms in blocks
-    await Room.deleteMany({ blockId: { $in: blockIds } }).session(session);
-
-    // Delete blocks in building
-    await Block.deleteMany({ buildingId }).session(session);
-
-    // Delete building
-    await Building.findByIdAndDelete(buildingId).session(session);
-
-    await session.commitTransaction();
-    
-    res.json({ message: 'Building deleted successfully' });
-  } catch (error) {
-    await session.abortTransaction();
-    res.status(500).json({ error: 'Failed to delete building' });
-  } finally {
-    session.endSession();
-  }
-});
-```
+- [ ] Tạo models + migration cho tất cả collection chính.  
+- [ ] Xây dựng routes/controller RESTful theo mục 4.  
+- [ ] Middleware `authenticateToken`, `authorize`.  
+- [ ] Swagger UI cập nhật (đường dẫn `/api-docs`).  
+- [ ] Bộ collection Postman/Insomnia để QA, frontend test.  
+- [ ] Script seed dữ liệu mẫu.  
+- [ ] CI lint/test (nếu team áp dụng).
 
 ---
 
-## 🚀 Setup Instructions
+## 10. Kết luận
 
-### 1. Create MongoDB Atlas Account (Free)
+- ✅ Đã chốt mô hình Building → Block → Room → Tenant và các module liên quan.  
+- ✅ Chuẩn hoá schema Mongoose + sample document.  
+- ✅ Liệt kê endpoints REST khớp với UI hiện tại.  
+- ✅ Ghi chú transaction, cascade, auth, error format.  
 
-```bash
-# Go to https://www.mongodb.com/cloud/atlas
-# Create free cluster (512MB)
-# Get connection string
-```
-
-### 2. Install Dependencies
-
-```bash
-npm install mongoose
-npm install --save-dev @types/mongoose
-```
-
-### 3. Environment Variables
-
-```env
-# .env
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/room-management?retryWrites=true&w=majority
-NODE_ENV=development
-PORT=3000
-```
-
-### 4. Project Structure
-
-```
-room-api-server/
-├── src/
-│   ├── models/
-│   │   ├── Building.ts
-│   │   ├── Block.ts
-│   │   ├── Room.ts
-│   │   ├── Tenant.ts
-│   │   └── Invoice.ts
-│   ├── routes/
-│   │   ├── admin/
-│   │   │   ├── buildings.ts
-│   │   │   ├── blocks.ts
-│   │   │   ├── rooms.ts
-│   │   │   └── tenants.ts
-│   │   └── client/
-│   │       ├── auth.ts
-│   │       └── profile.ts
-│   ├── middleware/
-│   │   ├── auth.ts
-│   │   └── errorHandler.ts
-│   ├── config/
-│   │   └── database.ts
-│   └── server.ts
-├── .env
-├── package.json
-└── tsconfig.json
-```
-
----
-
-## 📋 Summary of Changes
-
-### ✅ What Changed:
-- ❌ **Removed Floor** - Simplified structure
-- ✅ **3-level hierarchy**: Building → Block → Room → Tenant
-- ✅ **MongoDB + Mongoose** instead of PostgreSQL + Prisma
-- ✅ **Simpler relationships**
-- ✅ **Easier to understand and maintain**
-
-### 🎯 New Structure:
-```
-Building (Căn hộ Sunrise)
-  └─ Block A1
-      ├─ Room a1-01 → Tenant Nguyễn Văn A
-      ├─ Room a1-02 → Tenant Trần Thị B
-      └─ Room a1-03 (Available)
-  └─ Block A2
-      ├─ Room a2-01 → Tenant Lê Văn C
-      └─ Room a2-02 (Available)
-```
-
-### 💡 Benefits:
-- ✅ Easier to manage
-- ✅ Less complexity
-- ✅ Faster queries (less joins)
-- ✅ Better UX (less dropdowns)
-- ✅ MongoDB flexible schema
-
----
-
-Bạn muốn mình giúp update UI (remove Floor pages) không? 🚀
+Team backend chỉ cần follow tài liệu này để implement. Sau khi API sẵn sàng, frontend sẽ thay mock context bằng service call thực tế và kích hoạt toàn bộ chức năng quản lý. 🚀

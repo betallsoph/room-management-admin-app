@@ -9,13 +9,18 @@ import { RoomsPage } from './pages/RoomsPage';
 import { TenantsPage } from './pages/TenantsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterInfoPage } from './pages/RegisterInfoPage';
+import { AppToaster } from './components/AppToaster';
 
 function App() {
   return (
     <BrowserRouter>
       <RoomManagementProvider>
-        <Layout>
-          <Routes>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterInfoPage />} />
+          <Route element={<Layout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/manage" element={<ManagePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
@@ -24,8 +29,9 @@ function App() {
             <Route path="/blocks" element={<BlocksPage />} />
             <Route path="/rooms" element={<RoomsPage />} />
             <Route path="/tenants" element={<TenantsPage />} />
-          </Routes>
-        </Layout>
+          </Route>
+        </Routes>
+        <AppToaster />
       </RoomManagementProvider>
     </BrowserRouter>
   );
